@@ -45,35 +45,66 @@ export class ChromaVectorStore implements VectorStore {
 
     const collection = await this.getCollection();
     
-    const ids = chunks.map(chunk => chunk.id);
-    const documents = chunks.map(chunk => chunk.content);
-    const metadatas = chunks.map(chunk => ({
-      documentPath: chunk.documentPath,
-      title: chunk.title,
-      chunkIndex: chunk.chunkIndex,
-      startPosition: chunk.startPosition,
-      endPosition: chunk.endPosition,
-      category: chunk.metadata.category,
-      lawNumber: chunk.metadata.lawNumber || '',
-      fileName: chunk.metadata.fileName,
-      date: chunk.metadata.date?.toISOString() || '',
-      era: chunk.metadata.era || ''
-    }));
-
-    let embeddings: number[][];
+    // Process in smaller batches to avoid payload size limits
+    const chromaBatchSize = 50; // Smaller batch size for ChromaDB
     
-    if (chunks.some(chunk => chunk.embedding)) {
-      embeddings = chunks.map(chunk => chunk.embedding || []);
-    } else {
-      embeddings = await this.embeddingService.generateEmbeddings(documents);
-    }
+    for (let i = 0; i < chunks.length; i += chromaBatchSize) {
+      const batchChunks = chunks.slice(i, i + chromaBatchSize);
+      
+      const ids = batchChunks.map(chunk => chunk.id);
+      const documents = batchChunks.map(chunk => chunk.content);
+      const metadatas = batchChunks.map(chunk => ({
+        documentPath: chunk.documentPath,
+        title: chunk.title,
+        chunkIndex: chunk.chunkIndex,
+        startPosition: chunk.startPosition,
+        endPosition: chunk.endPosition,
+        category: chunk.metadata.category,
+        lawNumber: chunk.metadata.lawNumber || '',
+        fileName: chunk.metadata.fileName,
+        date: chunk.metadata.date?.toISOString() || '',
+        era: chunk.metadata.era || ''
+      }));
 
-    await collection.add({
-      ids,
-      embeddings,
-      documents,
-      metadatas
-    });
+      let embeddings: number[][];
+      
+      if (batchChunks.some(chunk => chunk.embedding)) {
+        embeddings = batchChunks.map(chunk => chunk.embedding || []);
+      } else {
+        embeddings = await this.embeddingService.generateEmbeddings(documents);
+      }
+
+      try {
+        await collection.add({
+          ids,
+          embeddings,
+          documents,
+          metadatas
+        });
+      } catch (error) {
+        console.warn(`Failed to add batch ${Math.floor(i/chromaBatchSize) + 1}, retrying with smaller chunks...`);
+        
+        // If batch still fails, process individually
+        for (let j = 0; j < batchChunks.length; j++) {
+          const chunk = batchChunks[j];
+          const metadata = metadatas[j];
+          if (!chunk || !metadata) continue;
+          
+          try {
+            const embedding = embeddings[j] || await this.embeddingService.generateEmbedding(chunk.content);
+            
+            await collection.add({
+              ids: [chunk.id],
+              embeddings: [embedding],
+              documents: [chunk.content],
+              metadatas: [metadata]
+            });
+          } catch (individualError) {
+            console.error(`Failed to add individual chunk ${chunk.id}:`, individualError);
+          }
+        }
+      }
+    }
   }
 
   async search(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {

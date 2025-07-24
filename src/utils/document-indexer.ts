@@ -19,7 +19,7 @@ export class DocumentIndexer {
       console.log(`📄 Found ${markdownFiles.length} markdown files`);
       
       let processed = 0;
-      const batchSize = 10;
+      const batchSize = 5; // Reduced batch size for large documents
       
       for (let i = 0; i < markdownFiles.length; i += batchSize) {
         const batch = markdownFiles.slice(i, i + batchSize);
@@ -75,8 +75,9 @@ export class DocumentIndexer {
   private async processDocument(filePath: string) {
     const document = await this.documentParser.parseMarkdownFile(filePath);
     
-    const chunkSize = parseInt(process.env.CHUNK_SIZE || '1000');
-    const overlap = parseInt(process.env.CHUNK_OVERLAP || '200');
+    // Use smaller chunk sizes for better performance and to avoid payload limits
+    const chunkSize = parseInt(process.env.CHUNK_SIZE || '500');
+    const overlap = parseInt(process.env.CHUNK_OVERLAP || '100');
     
     const chunks = this.documentParser.createChunks(document, chunkSize, overlap);
     
