@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
 import { config } from 'dotenv';
 import { createSearchController } from './controllers/search-controller';
 import { createQueryProcessor } from './services/query-processor';
@@ -14,6 +15,8 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+app.use(express.static(path.join(__dirname, '../public')));
 
 const initializeServices = () => {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -45,6 +48,10 @@ const setupRoutes = (searchController: ReturnType<typeof createSearchController>
   app.get('/api/conversations/:conversationId', searchController.getConversation.bind(searchController));
   
   app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/index.html'));
+  });
+
+  app.get('/api', (req, res) => {
     res.json({
       name: 'Japanese Law Search API',
       version: '1.0.0',
