@@ -95,9 +95,21 @@ export class AIServiceFactory {
       console.warn(`   ⚠️  Vertex AI requested but VERTEX_AI_PROJECT_ID not found`);
     }
 
+    // Configure Gemini API
+    if (process.env.GEMINI_API_KEY) {
+      config.gemini = {
+        apiKey: process.env.GEMINI_API_KEY,
+        model: 'gemini-embedding-001', // Gemini API only supports embeddings for now
+      };
+      console.log(`   ✅ Gemini API configured (model: ${config.gemini.model})`);
+    } else if (primary === 'gemini' || fallback.includes('gemini')) {
+      console.warn(`   ⚠️  Gemini API requested but GEMINI_API_KEY not found`);
+    }
+
     // Validate configuration
     const hasValidPrimary = (primary === 'openai' && config.openai) || 
-                           (primary === 'vertexai' && config.vertexai);
+                           (primary === 'vertexai' && config.vertexai) ||
+                           (primary === 'gemini' && config.gemini);
     
     if (!hasValidPrimary) {
       throw new Error(`Primary provider '${primary}' is not properly configured. Please check your environment variables.`);

@@ -1,41 +1,35 @@
 import { GoogleGenAI } from '@google/genai';
 import { EmbeddingService } from '../types';
-import { VertexAIConfig, VertexAIError } from '../types/vertex-ai';
+import { VertexAIError } from '../types/vertex-ai';
 
-export class VertexAIEmbeddingService implements EmbeddingService {
+export interface GeminiEmbeddingConfig {
+  apiKey: string;
+  model?: string;
+}
+
+export class GeminiEmbeddingService implements EmbeddingService {
   private client: GoogleGenAI;
   private model: string;
-  private config: VertexAIConfig;
+  private config: GeminiEmbeddingConfig;
 
-  constructor(config: VertexAIConfig) {
+  constructor(config: GeminiEmbeddingConfig) {
     this.config = config;
-    this.model = config.embeddingModel || 'gemini-embedding-001';
+    this.model = config.model || 'gemini-embedding-001';
     
-    console.log(`🔗 Initializing Vertex AI Embedding Service`);
-    console.log(`📍 Project: ${config.projectId}, Location: ${config.location}`);
+    console.log(`🔗 Initializing Gemini Embedding Service`);
     console.log(`🤖 Model: ${this.model}`);
 
-    // Set environment variables for Vertex AI mode
-    process.env.GOOGLE_CLOUD_PROJECT = config.projectId;
-    process.env.GOOGLE_CLOUD_LOCATION = config.location;
-    process.env.GOOGLE_GENAI_USE_VERTEXAI = 'True';
+    // Initialize Gemini client
+    this.client = new GoogleGenAI({
+      apiKey: config.apiKey,
+    });
 
-    if (config.keyFilename) {
-      process.env.GOOGLE_APPLICATION_CREDENTIALS = config.keyFilename;
-      console.log(`🔑 Using service account key: ${config.keyFilename}`);
-    } else {
-      console.log(`🔑 Using Application Default Credentials (ADC)`);
-    }
-
-    // Initialize GoogleGenAI client for Vertex AI
-    this.client = new GoogleGenAI({});
-
-    console.log(`✅ Vertex AI Embedding Service initialized (using @google/genai)`);
+    console.log(`✅ Gemini Embedding Service initialized`);
   }
 
   async generateEmbedding(text: string): Promise<number[]> {
     try {
-      console.log(`🧠 Generating embedding via Vertex AI for text (length: ${text.length})`);
+      console.log(`🧠 Generating embedding for text (length: ${text.length})`);
       
       const response = await this.client.models.embedContent({
         model: this.model,
@@ -43,43 +37,43 @@ export class VertexAIEmbeddingService implements EmbeddingService {
       });
 
       if (!response.embeddings || !response.embeddings[0] || !response.embeddings[0].values) {
-        throw new VertexAIError('No embeddings received from Vertex AI');
+        throw new VertexAIError('No embeddings received from Gemini API');
       }
 
       const embedding = response.embeddings[0].values;
-      console.log(`✅ Generated embedding via Vertex AI with ${embedding.length} dimensions`);
+      console.log(`✅ Generated embedding with ${embedding.length} dimensions`);
       
       return embedding;
     } catch (error) {
-      console.error('Failed to generate embedding with Vertex AI:', error);
+      console.error('Failed to generate embedding with Gemini API:', error);
       
       if (error instanceof Error) {
         throw new VertexAIError(
-          `Vertex AI embedding failed: ${error.message}`,
+          `Gemini embedding failed: ${error.message}`,
           'EMBEDDING_ERROR',
           undefined,
           error
         );
       }
       
-      throw new VertexAIError('Unknown error in Vertex AI embedding generation');
+      throw new VertexAIError('Unknown error in Gemini embedding generation');
     }
   }
 
   async generateEmbeddings(texts: string[]): Promise<number[][]> {
     try {
-      const batchSize = 100; // Vertex AI recommended batch size
+      const batchSize = 100; // Gemini recommended batch size
       const results: number[][] = [];
 
       // Process in parallel with concurrency limit
-      const concurrency = 3; // Conservative concurrency for Vertex AI
+      const concurrency = 5; // Conservative concurrency for Gemini API
       const batches: string[][] = [];
       
       for (let i = 0; i < texts.length; i += batchSize) {
         batches.push(texts.slice(i, i + batchSize));
       }
 
-      console.log(`🧠 Generating embeddings via Vertex AI for ${texts.length} texts using ${batches.length} batches`);
+      console.log(`🧠 Generating embeddings for ${texts.length} texts using ${batches.length} batches`);
 
       for (let i = 0; i < batches.length; i += concurrency) {
         const concurrentBatches = batches.slice(i, i + concurrency);
@@ -109,7 +103,7 @@ export class VertexAIEmbeddingService implements EmbeddingService {
 
         // Show progress
         const processedBatches = Math.min(i + concurrency, batches.length);
-        console.log(`🧠 Vertex AI: Generated embeddings for ${processedBatches}/${batches.length} batches`);
+        console.log(`🧠 Gemini: Generated embeddings for ${processedBatches}/${batches.length} batches`);
       }
 
       // Filter out empty embeddings
@@ -121,18 +115,18 @@ export class VertexAIEmbeddingService implements EmbeddingService {
 
       return validResults;
     } catch (error) {
-      console.error('Failed to generate embeddings with Vertex AI:', error);
+      console.error('Failed to generate embeddings with Gemini API:', error);
       
       if (error instanceof Error) {
         throw new VertexAIError(
-          `Vertex AI batch embedding failed: ${error.message}`,
+          `Gemini batch embedding failed: ${error.message}`,
           'BATCH_EMBEDDING_ERROR',
           undefined,
           error
         );
       }
       
-      throw new VertexAIError('Unknown error in Vertex AI batch embedding generation');
+      throw new VertexAIError('Unknown error in Gemini batch embedding generation');
     }
   }
 
@@ -143,7 +137,7 @@ export class VertexAIEmbeddingService implements EmbeddingService {
       const embedding = await this.generateEmbedding(testText);
       return embedding.length > 0;
     } catch (error) {
-      console.error('Vertex AI embedding health check failed:', error);
+      console.error('Gemini embedding health check failed:', error);
       return false;
     }
   }
@@ -163,15 +157,12 @@ export class VertexAIEmbeddingService implements EmbeddingService {
 
   // Get model information
   getModelInfo(): { name: string; dimensions: number; maxTokens: number } {
-    // Model specifications for common Vertex AI embedding models
+    // Model specifications for Gemini embedding models
     const modelSpecs: Record<string, { dimensions: number; maxTokens: number }> = {
-      'text-embedding-004': { dimensions: 768, maxTokens: 20000 },
-      'textembedding-gecko': { dimensions: 768, maxTokens: 3072 },
-      'textembedding-gecko-multilingual': { dimensions: 768, maxTokens: 3072 },
-      'gemini-embedding-001': { dimensions: 3072, maxTokens: 20000 },
+      'gemini-embedding-001': { dimensions: 3072, maxTokens: 2048 },
     };
 
-    const spec = modelSpecs[this.model] || { dimensions: 3072, maxTokens: 20000 };
+    const spec = modelSpecs[this.model] || { dimensions: 3072, maxTokens: 2048 };
     
     return {
       name: this.model,
@@ -180,6 +171,6 @@ export class VertexAIEmbeddingService implements EmbeddingService {
   }
 }
 
-export const createVertexAIEmbeddingService = (config: VertexAIConfig): EmbeddingService => {
-  return new VertexAIEmbeddingService(config);
+export const createGeminiEmbeddingService = (config: GeminiEmbeddingConfig): EmbeddingService => {
+  return new GeminiEmbeddingService(config);
 };

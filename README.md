@@ -29,7 +29,7 @@
 - **Vector Database**: ChromaDB
 - **AI Providers**: 
   - OpenAI GPT-3.5/4, text-embedding-3-small
-  - Google Vertex AI Gemini Pro/Flash, text-embedding-004
+  - Google Vertex AI Gemini Pro/Flash, gemini-embedding-001
 - **Frontend**: Vanilla JavaScript, CSS3
 - **Testing**: Jest
 - **Linting**: ESLint
@@ -96,13 +96,34 @@ AI_PROVIDER_FALLBACK=openai
 VERTEX_AI_PROJECT_ID=your-gcp-project-id
 VERTEX_AI_LOCATION=asia-northeast1
 VERTEX_AI_TEXT_MODEL=gemini-1.5-pro
-VERTEX_AI_EMBEDDING_MODEL=text-embedding-004
+VERTEX_AI_EMBEDDING_MODEL=gemini-embedding-001
 # VERTEX_AI_KEY_FILENAME=/path/to/service-account-key.json  # Optional
 
 # OpenAI Configuration (Optional - フォールバック用)
 OPENAI_API_KEY=your_openai_api_key_here
 
 # Other Settings  
+CHROMA_HOST=localhost
+CHROMA_PORT=8000
+PORT=3000
+DOCUMENTS_PATH=./markdown
+```
+
+#### Option 3: Gemini API使用の場合（エンベディングのみ）
+```env
+# AI Provider Configuration
+AI_PROVIDER_PRIMARY=gemini
+AI_PROVIDER_FALLBACK=vertexai,openai
+
+# Gemini API Configuration
+GEMINI_API_KEY=your-gemini-api-key-here
+
+# Vertex AI Configuration (フォールバック用 - LLM処理に必要)
+VERTEX_AI_PROJECT_ID=your-gcp-project-id
+VERTEX_AI_LOCATION=asia-northeast1
+VERTEX_AI_TEXT_MODEL=gemini-1.5-pro
+
+# Other Settings
 CHROMA_HOST=localhost
 CHROMA_PORT=8000
 PORT=3000
@@ -263,8 +284,13 @@ npm run index:documents
 ### AIプロバイダー設定
 
 #### プロバイダー選択
-- **プライマリプロバイダー**: `AI_PROVIDER_PRIMARY=openai|vertexai`
-- **フォールバックプロバイダー**: `AI_PROVIDER_FALLBACK=vertexai,openai`
+- **プライマリプロバイダー**: `AI_PROVIDER_PRIMARY=openai|vertexai|gemini`
+- **フォールバックプロバイダー**: `AI_PROVIDER_FALLBACK=vertexai,openai,gemini`
+
+#### Gemini API使用時の注意点
+- Gemini APIは現在**エンベディングのみ**サポート
+- LLM処理（テキスト生成）にはVertex AIまたはOpenAIが必要
+- フォールバック設定でVertex AIまたはOpenAIを指定してください
 
 #### コスト最適化
 - **コスト最適化**: `COST_OPTIMIZATION_ENABLED=true`
@@ -345,7 +371,7 @@ MIT License
 
 このプロジェクトは以下の技術・サービスを使用しています:
 - OpenAI GPT & Embeddings
-- Google Vertex AI (Gemini Pro/Flash, text-embedding-004)
+- Google Vertex AI (Gemini Pro/Flash, gemini-embedding-001)
 - ChromaDB
 - Express.js
 - TypeScript

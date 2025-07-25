@@ -12,6 +12,7 @@ import { OpenAIEmbeddingService } from './embedding-service';
 import { OpenAILLMService } from './llm-service';
 import { VertexAIEmbeddingService } from './vertex-ai-embedding';
 import { VertexAILLMService } from './vertex-ai-llm';
+import { GeminiEmbeddingService } from './gemini-embedding';
 
 export class ProviderFactory {
   private config: ProviderConfig;
@@ -93,6 +94,15 @@ export class ProviderFactory {
         }
         return new VertexAIEmbeddingService(this.config.vertexai);
 
+      case 'gemini':
+        if (!this.config.gemini?.apiKey) {
+          throw new Error('Gemini API key not configured');
+        }
+        return new GeminiEmbeddingService({
+          apiKey: this.config.gemini.apiKey,
+          model: this.config.gemini.model || 'gemini-embedding-001'
+        });
+
       case 'anthropic':
         throw new Error('Anthropic embedding service not yet implemented');
 
@@ -120,6 +130,11 @@ export class ProviderFactory {
           throw new Error('Vertex AI configuration not provided');
         }
         return new VertexAILLMService(this.config.vertexai);
+
+      case 'gemini':
+        // For now, Gemini API only supports embeddings, not chat/text generation
+        // We would need to implement a separate Gemini LLM service for this
+        throw new Error('Gemini LLM service not yet implemented - use Vertex AI for Gemini models');
 
       case 'anthropic':
         throw new Error('Anthropic LLM service not yet implemented');
@@ -198,7 +213,7 @@ export class ProviderFactory {
           const result = await service.generateEmbedding(text);
           
           // Track cost (simplified estimation)
-          if (provider === 'openai' || provider === 'vertexai') {
+          if (provider === 'openai' || provider === 'vertexai' || provider === 'gemini') {
             factoryInstance.trackCost(provider, 'embedding', text.length / 4, 0); // Rough token estimation
           }
           
@@ -215,7 +230,7 @@ export class ProviderFactory {
           const result = await service.generateEmbeddings(texts);
           
           // Track cost
-          if (provider === 'openai' || provider === 'vertexai') {
+          if (provider === 'openai' || provider === 'vertexai' || provider === 'gemini') {
             const totalTokens = texts.reduce((sum, text) => sum + text.length / 4, 0);
             factoryInstance.trackCost(provider, 'embedding', totalTokens, 0);
           }
@@ -239,7 +254,7 @@ export class ProviderFactory {
           const result = await service.generateResponse(prompt, context, conversation);
           
           // Track cost (simplified estimation)
-          if (provider === 'openai' || provider === 'vertexai') {
+          if (provider === 'openai' || provider === 'vertexai' || provider === 'gemini') {
             const inputTokens = (prompt + JSON.stringify(context)).length / 4;
             const outputTokens = result.length / 4;
             factoryInstance.trackCost(provider, 'generation', inputTokens, outputTokens);
@@ -309,9 +324,15 @@ export class ProviderFactory {
       }
     } else if (provider === 'vertexai') {
       if (operation === 'embedding') {
-        cost = inputTokens * 0.000025 / 1000; // text-embedding-004 pricing
+        cost = inputTokens * 0.00015 / 1000; // gemini-embedding-001 pricing: $0.15 per 1M tokens
       } else {
         cost = inputTokens * 0.0025 / 1000 + outputTokens * 0.0075 / 1000; // Gemini Pro pricing
+      }
+    } else if (provider === 'gemini') {
+      if (operation === 'embedding') {
+        cost = inputTokens * 0.00015 / 1000; // gemini-embedding-001 pricing: $0.15 per 1M tokens
+      } else {
+        cost = inputTokens * 0.0025 / 1000 + outputTokens * 0.0075 / 1000; // Gemini Pro pricing (if LLM implemented)
       }
     }
 

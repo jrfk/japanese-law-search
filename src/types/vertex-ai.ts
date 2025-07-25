@@ -75,7 +75,7 @@ export interface VertexAITextResponse {
 }
 
 // Provider configuration for multi-provider support
-export type AIProvider = 'openai' | 'vertexai' | 'anthropic' | 'local';
+export type AIProvider = 'openai' | 'vertexai' | 'gemini' | 'anthropic' | 'local';
 
 export interface ProviderConfig {
   primary: AIProvider;
@@ -101,6 +101,11 @@ export interface ProviderConfig {
   };
   
   vertexai?: VertexAIConfig;
+  
+  gemini?: {
+    apiKey: string;
+    model?: string;
+  };
   
   anthropic?: {
     apiKey: string;
