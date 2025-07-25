@@ -60,3 +60,39 @@ This feature implements a natural language search system similar to NotebookLM a
 2. WHEN a user applies date filters THEN the system SHALL only return documents within the specified time range
 3. WHEN a user specifies folder filters THEN the system SHALL limit search scope to selected directories
 4. WHEN search settings are configured THEN the system SHALL persist these preferences across sessions
+
+### Requirement 6
+
+**User Story:** As a system administrator, I want to configure multiple AI providers for LLM and embedding services, so that I can optimize for cost, performance, and regional requirements.
+
+#### Acceptance Criteria
+
+1. WHEN configuring AI providers THEN the system SHALL support OpenAI and Google Vertex AI as backend services
+2. WHEN one provider is unavailable THEN the system SHALL automatically fall back to alternative providers
+3. WHEN selecting providers THEN the system SHALL allow configuration based on cost optimization, latency, or feature requirements
+4. WHEN using Vertex AI THEN the system SHALL support regional deployment for data residency compliance
+5. WHEN provider health checks fail THEN the system SHALL log failures and route traffic to healthy providers
+6. WHEN switching providers THEN the system SHALL maintain consistent user experience across different backends
+
+### Requirement 7
+
+**User Story:** As a user in Japan, I want optimized performance for Japanese language processing, so that I can get accurate and fast results for legal document searches.
+
+#### Acceptance Criteria
+
+1. WHEN processing Japanese legal documents THEN the system SHALL use models optimized for Japanese language understanding
+2. WHEN users are located in Asia-Pacific regions THEN the system SHALL route requests to geographically closer endpoints
+3. WHEN processing Japanese text THEN the system SHALL handle character encoding, tokenization, and semantic understanding correctly
+4. WHEN embedding Japanese content THEN the system SHALL use embedding models trained on Japanese text for better accuracy
+
+### Requirement 8
+
+**User Story:** As a budget-conscious organization, I want to optimize AI API costs while maintaining quality, so that I can operate the system cost-effectively at scale.
+
+#### Acceptance Criteria
+
+1. WHEN processing large document collections THEN the system SHALL provide cost estimation and optimization recommendations
+2. WHEN embedding documents THEN the system SHALL use cost-effective models without significantly impacting search quality
+3. WHEN generating responses THEN the system SHALL balance response quality with token usage costs
+4. WHEN multiple providers are available THEN the system SHALL route requests based on cost-per-token optimization
+5. WHEN usage patterns are analyzed THEN the system SHALL provide cost breakdowns by provider and operation type

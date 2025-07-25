@@ -3,23 +3,36 @@
 import { config } from 'dotenv';
 import { createDocumentIndexer } from '../utils/document-indexer';
 import { createVectorStore } from '../services/vector-store';
-import { createEmbeddingService } from '../services/embedding-service';
+import { AIServiceFactory } from '../services/ai-service-factory';
 
 config();
 
 async function main() {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    console.error('❌ OPENAI_API_KEY environment variable is required');
-    process.exit(1);
-  }
-
   const documentsPath = process.env.DOCUMENTS_PATH || './markdown';
   
-  console.log('🚀 Initializing services...');
+  console.log('🚀 Initializing AI services...');
   
   try {
-    const embeddingService = createEmbeddingService(apiKey, process.env.EMBEDDING_MODEL);
+    // Initialize AI Service Factory
+    const aiServiceFactory = AIServiceFactory.initialize();
+    
+    // Log provider configuration
+    const healthStatus = aiServiceFactory.getHealthStatus();
+    console.log('🏥 Available providers:');
+    for (const [provider] of healthStatus) {
+      console.log(`   📡 ${provider}`);
+    }
+    
+    console.log('🔧 Creating embedding service...');
+    const embeddingService = await aiServiceFactory.createEmbeddingService();
+    
+    // Log which provider is actually being used
+    const providerName = (embeddingService as any).providerName;
+    if (providerName) {
+      console.log(`   📡 Active embedding provider: ${providerName}`);
+    }
+    
+    console.log('🗃️ Setting up vector store...');
     const vectorStore = createVectorStore(embeddingService, {
       host: process.env.CHROMA_HOST || 'localhost',
       port: parseInt(process.env.CHROMA_PORT || '8000'),
@@ -45,6 +58,21 @@ async function main() {
     console.log(`📄 Documents processed: ${statsAfter.totalDocuments}`);
     console.log(`💾 Total embeddings: ${statsAfter.totalEmbeddings}`);
     console.log(`📈 New embeddings: ${statsAfter.totalEmbeddings - statsBefore.totalEmbeddings}`);
+    
+    // Show cost summary
+    const costSummary = aiServiceFactory.getCostSummary();
+    if (costSummary.total > 0) {
+      console.log(`💰 Total API cost: $${costSummary.total.toFixed(4)}`);
+      console.log('💳 Cost by provider:');
+      for (const [provider, cost] of Object.entries(costSummary.byProvider)) {
+        if (cost > 0) {
+          console.log(`   ${provider}: $${cost.toFixed(4)}`);
+        }
+      }
+    }
+    
+    // Clean up
+    aiServiceFactory.dispose();
     
   } catch (error) {
     console.error('❌ Indexing failed:', error);

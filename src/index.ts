@@ -5,8 +5,8 @@ import { config } from 'dotenv';
 import { createSearchController } from './controllers/search-controller';
 import { createQueryProcessor } from './services/query-processor';
 import { createVectorStore } from './services/vector-store';
-import { createEmbeddingService } from './services/embedding-service';
-import { createLLMService, conversationManager } from './services/llm-service';
+import { conversationManager } from './services/llm-service';
+import { AIServiceFactory } from './services/ai-service-factory';
 
 config();
 
@@ -18,24 +18,26 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(express.static(path.join(__dirname, '../public')));
 
-const initializeServices = () => {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error('OPENAI_API_KEY environment variable is required');
-  }
-
-  const embeddingService = createEmbeddingService(apiKey, process.env.EMBEDDING_MODEL);
+const initializeServices = async () => {
+  // Initialize AI Service Factory
+  const aiServiceFactory = AIServiceFactory.initialize();
+  
+  console.log('🔧 Creating AI services...');
+  const embeddingService = await aiServiceFactory.createEmbeddingService();
+  const llmService = await aiServiceFactory.createLLMService();
+  
+  console.log('🗃️ Setting up vector store...');
   const vectorStore = createVectorStore(embeddingService, {
     host: process.env.CHROMA_HOST,
     port: parseInt(process.env.CHROMA_PORT || '8000'),
     collectionName: 'japanese-law-documents'
   });
   
-  const llmService = createLLMService(apiKey, process.env.OPENAI_MODEL);
+  console.log('⚙️ Creating query processor...');
   const queryProcessor = createQueryProcessor(vectorStore, llmService, conversationManager);
   const searchController = createSearchController(queryProcessor);
 
-  return { searchController, queryProcessor, vectorStore };
+  return { searchController, queryProcessor, vectorStore, aiServiceFactory };
 };
 
 const setupRoutes = (searchController: ReturnType<typeof createSearchController>) => {
@@ -81,11 +83,19 @@ const setupRoutes = (searchController: ReturnType<typeof createSearchController>
 const startServer = async () => {
   try {
     console.log('🔄 Initializing services...');
-    const { searchController } = initializeServices();
+    const { searchController, aiServiceFactory } = await initializeServices();
     console.log('✅ Services initialized successfully');
     
     setupRoutes(searchController);
     console.log('✅ Routes setup completed');
+    
+    // Log provider health status
+    const healthStatus = aiServiceFactory.getHealthStatus();
+    console.log('🏥 Provider health status:');
+    for (const [provider, status] of healthStatus) {
+      const statusIcon = status.healthy ? '✅' : '❌';
+      console.log(`   ${statusIcon} ${provider}: ${status.healthy ? 'healthy' : 'unhealthy'}`);
+    }
     
     const port = parseInt(process.env.PORT || '3000');
     
@@ -93,7 +103,27 @@ const startServer = async () => {
       console.log(`🚀 Japanese Law Search API is running on port ${port}`);
       console.log(`📖 API Documentation: http://localhost:${port}`);
       console.log(`🏥 Health Check: http://localhost:${port}/health`);
+      
+      // Log cost summary
+      const costSummary = aiServiceFactory.getCostSummary();
+      if (costSummary.total > 0) {
+        console.log(`💰 Total API cost: $${costSummary.total.toFixed(4)}`);
+      }
     });
+    
+    // Handle graceful shutdown
+    process.on('SIGTERM', () => {
+      console.log('🛑 Received SIGTERM, shutting down gracefully...');
+      aiServiceFactory.dispose();
+      process.exit(0);
+    });
+    
+    process.on('SIGINT', () => {
+      console.log('🛑 Received SIGINT, shutting down gracefully...');
+      aiServiceFactory.dispose();
+      process.exit(0);
+    });
+    
   } catch (error) {
     console.error('❌ Failed to start server:', error);
     console.error('Error details:', error);

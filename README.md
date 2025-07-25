@@ -5,7 +5,8 @@
 ## 🌟 機能
 
 - **自然言語検索**: 日本語・英語での自然な質問が可能
-- **セマンティック検索**: OpenAI Embeddingsを使用した意味的な文書検索
+- **セマンティック検索**: OpenAI/Vertex AI Embeddingsを使用した意味的な文書検索
+- **マルチプロバイダー対応**: OpenAI ⇄ Google Vertex AI 自動フォールバック
 - **会話形式の対話**: 継続的な対話で深い理解が可能
 - **多様なフィルタリング**: カテゴリ、時代、法律番号での絞り込み
 - **ソース表示**: 回答の根拠となる文書の明示
@@ -16,8 +17,8 @@
 ### 主要コンポーネント
 
 1. **Document Parser**: マークダウンファイルの解析とメタデータ抽出
-2. **Vector Search Engine**: OpenAI Embeddings + ChromaDBによるベクトル検索
-3. **LLM Service**: OpenAI GPTを使用した自然言語応答生成
+2. **Vector Search Engine**: OpenAI/Vertex AI Embeddings + ChromaDBによるベクトル検索
+3. **Multi-Provider AI Services**: OpenAI/Vertex AI対応のLLM・エンベディングサービス
 4. **Query Processor**: 検索と応答生成のオーケストレーション
 5. **REST API**: フロントエンドとの連携用API
 6. **Web UI**: ユーザーフレンドリーなチャットインターフェース
@@ -26,8 +27,9 @@
 
 - **Backend**: Node.js, TypeScript, Express
 - **Vector Database**: ChromaDB
-- **LLM**: OpenAI GPT-3.5/4
-- **Embeddings**: OpenAI text-embedding-3-small
+- **AI Providers**: 
+  - OpenAI GPT-3.5/4, text-embedding-3-small
+  - Google Vertex AI Gemini Pro/Flash, text-embedding-004
 - **Frontend**: Vanilla JavaScript, CSS3
 - **Testing**: Jest
 - **Linting**: ESLint
@@ -38,7 +40,9 @@
 
 - Node.js (v18以上)
 - ChromaDB サーバー
-- OpenAI API キー
+- **AI Provider (以下のいずれか)**:
+  - OpenAI API キー
+  - Google Cloud Project (Vertex AI API有効化済み)
 
 ### インストール
 
@@ -59,10 +63,46 @@ cp .env.example .env
 ```
 
 `.env`ファイルを編集して以下を設定:
+
+#### Option 1: OpenAI使用の場合
 ```env
+# AI Provider Configuration
+AI_PROVIDER_PRIMARY=openai
+AI_PROVIDER_FALLBACK=vertexai
+
+# OpenAI Configuration
 OPENAI_API_KEY=your_openai_api_key_here
 OPENAI_MODEL=gpt-3.5-turbo
-EMBEDDING_MODEL=text-embedding-3-small
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+
+# Vertex AI Configuration (Optional - フォールバック用)
+VERTEX_AI_PROJECT_ID=your-gcp-project-id
+VERTEX_AI_LOCATION=asia-northeast1
+
+# Other Settings
+CHROMA_HOST=localhost
+CHROMA_PORT=8000
+PORT=3000
+DOCUMENTS_PATH=./markdown
+```
+
+#### Option 2: Vertex AI使用の場合
+```env
+# AI Provider Configuration
+AI_PROVIDER_PRIMARY=vertexai
+AI_PROVIDER_FALLBACK=openai
+
+# Vertex AI Configuration
+VERTEX_AI_PROJECT_ID=your-gcp-project-id
+VERTEX_AI_LOCATION=asia-northeast1
+VERTEX_AI_TEXT_MODEL=gemini-1.5-pro
+VERTEX_AI_EMBEDDING_MODEL=text-embedding-004
+# VERTEX_AI_KEY_FILENAME=/path/to/service-account-key.json  # Optional
+
+# OpenAI Configuration (Optional - フォールバック用)
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Other Settings  
 CHROMA_HOST=localhost
 CHROMA_PORT=8000
 PORT=3000
@@ -71,7 +111,10 @@ DOCUMENTS_PATH=./markdown
 
 4. ChromaDBを起動:
 ```bash
-# Docker使用の場合
+# Docker Compose使用の場合 (推奨)
+docker-compose up -d
+
+# またはDocker直接使用
 docker run -p 8000:8000 chromadb/chroma
 
 # またはPythonで直接インストール
@@ -88,7 +131,11 @@ npm run build
 
 2. ドキュメントを索引化:
 ```bash
+# 自動プロバイダー選択でインデックス化
 npm run index:documents
+
+# Vertex AI直接指定でインデックス化
+npm run index:documents:vertex
 ```
 
 3. サーバーを起動:
@@ -152,21 +199,28 @@ src/
 ├── types/              # TypeScript型定義
 │   ├── document.ts     # ドキュメント関連の型
 │   ├── vector.ts       # ベクトル検索関連の型
+│   ├── vertex-ai.ts    # Vertex AI関連の型
 │   └── index.ts        # 型のエクスポート
 ├── services/           # コアサービス
-│   ├── document-parser.ts    # ドキュメント解析
-│   ├── embedding-service.ts  # 埋め込み生成
-│   ├── vector-store.ts       # ベクトル検索
-│   ├── llm-service.ts        # LLM統合
-│   └── query-processor.ts    # クエリ処理
+│   ├── document-parser.ts       # ドキュメント解析
+│   ├── embedding-service.ts     # OpenAI埋め込み生成
+│   ├── vertex-ai-embedding.ts   # Vertex AI埋め込み生成
+│   ├── llm-service.ts           # OpenAI LLM統合
+│   ├── vertex-ai-llm.ts         # Vertex AI LLM統合
+│   ├── provider-factory.ts      # マルチプロバイダー管理
+│   ├── ai-service-factory.ts    # AIサービス統合管理
+│   ├── vector-store.ts          # ベクトル検索
+│   └── query-processor.ts       # クエリ処理
 ├── controllers/        # APIコントローラー
 │   └── search-controller.ts
 ├── utils/              # ユーティリティ
-│   └── document-indexer.ts   # 文書索引化
+│   └── document-indexer.ts      # 文書索引化
 ├── scripts/            # CLIスクリプト
-│   └── index-documents.ts    # 文書索引化スクリプト
+│   ├── index-documents.ts       # 自動プロバイダー選択
+│   └── index-documents-vertex.ts # Vertex AI直接指定
 ├── __tests__/          # テストファイル
-│   └── document-parser.test.ts
+│   ├── document-parser.test.ts
+│   └── vertex-ai-integration.test.ts
 ├── app.ts              # Expressアプリケーション
 └── index.ts            # エントリーポイント
 
@@ -206,6 +260,20 @@ npm run index:documents
 
 ## 📝 設定
 
+### AIプロバイダー設定
+
+#### プロバイダー選択
+- **プライマリプロバイダー**: `AI_PROVIDER_PRIMARY=openai|vertexai`
+- **フォールバックプロバイダー**: `AI_PROVIDER_FALLBACK=vertexai,openai`
+
+#### コスト最適化
+- **コスト最適化**: `COST_OPTIMIZATION_ENABLED=true`
+- **月次予算制限**: `MONTHLY_BUDGET_LIMIT=100` (USD)
+
+#### ヘルスチェック
+- **ヘルスチェック間隔**: `HEALTH_CHECK_INTERVAL=300000` (5分)
+- **タイムアウト時間**: `HEALTH_CHECK_TIMEOUT=10000` (10秒)
+
 ### ドキュメント解析
 
 - **チャンクサイズ**: `CHUNK_SIZE=1000` (デフォルト)
@@ -215,6 +283,52 @@ npm run index:documents
 
 - **最大検索結果数**: `MAX_SEARCH_RESULTS=10`
 - **類似度閾値**: `SIMILARITY_THRESHOLD=0.7`
+
+## 🌐 Vertex AI セットアップ
+
+### Google Cloud 設定
+
+1. **Google Cloud Projectを作成**:
+```bash
+gcloud projects create your-project-id
+gcloud config set project your-project-id
+```
+
+2. **Vertex AI APIを有効化**:
+```bash
+gcloud services enable aiplatform.googleapis.com
+```
+
+3. **認証設定**:
+
+#### Option 1: Application Default Credentials (ADC)
+```bash
+gcloud auth application-default login
+```
+
+#### Option 2: Service Account Key
+```bash
+# サービスアカウント作成
+gcloud iam service-accounts create vertex-ai-service
+
+# 権限付与
+gcloud projects add-iam-policy-binding your-project-id \
+    --member="serviceAccount:vertex-ai-service@your-project-id.iam.gserviceaccount.com" \
+    --role="roles/aiplatform.user"
+
+# キーファイル生成
+gcloud iam service-accounts keys create vertex-ai-key.json \
+    --iam-account=vertex-ai-service@your-project-id.iam.gserviceaccount.com
+
+# 環境変数に設定
+export VERTEX_AI_KEY_FILENAME=/path/to/vertex-ai-key.json
+```
+
+### 地域最適化
+
+日本国内でのアクセスには以下の地域を推奨:
+- **asia-northeast1** (東京): 低レイテンシ
+- **asia-northeast3** (ソウル): バックアップ地域
 
 ## 🤝 コントリビューション
 
@@ -231,6 +345,8 @@ MIT License
 
 このプロジェクトは以下の技術・サービスを使用しています:
 - OpenAI GPT & Embeddings
+- Google Vertex AI (Gemini Pro/Flash, text-embedding-004)
 - ChromaDB
 - Express.js
 - TypeScript
+- Docker
