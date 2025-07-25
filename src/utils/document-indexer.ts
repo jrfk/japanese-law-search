@@ -19,12 +19,24 @@ export class DocumentIndexer {
       console.log(`📄 Found ${markdownFiles.length} markdown files`);
       
       let processed = 0;
-      const batchSize = 5; // Reduced batch size for large documents
+      const batchSize = 20; // Larger batch size for better performance
+      const concurrency = 3; // Process multiple batches in parallel
       
+      const batches: string[][] = [];
       for (let i = 0; i < markdownFiles.length; i += batchSize) {
-        const batch = markdownFiles.slice(i, i + batchSize);
-        await this.processBatch(batch);
-        processed += batch.length;
+        batches.push(markdownFiles.slice(i, i + batchSize));
+      }
+
+      for (let i = 0; i < batches.length; i += concurrency) {
+        const concurrentBatches = batches.slice(i, i + concurrency);
+        
+        // Process batches in parallel
+        await Promise.all(
+          concurrentBatches.map(async (batch) => {
+            await this.processBatch(batch);
+            processed += batch.length;
+          })
+        );
         
         const percentage = ((processed / markdownFiles.length) * 100).toFixed(1);
         console.log(`✅ Processed ${processed}/${markdownFiles.length} documents (${percentage}%)`);
@@ -53,11 +65,14 @@ export class DocumentIndexer {
   }
 
   private async processBatch(filePaths: string[]): Promise<void> {
+    console.log(`📋 Processing batch of ${filePaths.length} files...`);
+    
+    // Process documents in parallel
     const promises = filePaths.map(async (filePath) => {
       try {
         return await this.processDocument(filePath);
       } catch (error) {
-        console.warn(`⚠️  Failed to process ${filePath}:`, error);
+        console.warn(`⚠️  Failed to process ${path.basename(filePath)}:`, error);
         return null;
       }
     });
@@ -67,8 +82,12 @@ export class DocumentIndexer {
       .filter(chunks => chunks !== null)
       .flat();
 
+    console.log(`📦 Generated ${allChunks.length} chunks from ${filePaths.length} documents`);
+
     if (allChunks.length > 0) {
+      console.log(`🔄 Adding ${allChunks.length} chunks to vector store...`);
       await this.vectorStore.addEmbeddings(allChunks);
+      console.log(`✅ Successfully added ${allChunks.length} chunks to vector store`);
     }
   }
 

@@ -45,8 +45,8 @@ export class ChromaVectorStore implements VectorStore {
 
     const collection = await this.getCollection();
     
-    // Process in smaller batches to avoid payload size limits
-    const chromaBatchSize = 50; // Smaller batch size for ChromaDB
+    // Process in optimized batches to balance speed and payload limits
+    const chromaBatchSize = 100; // Optimized batch size for ChromaDB
     
     for (let i = 0; i < chunks.length; i += chromaBatchSize) {
       const batchChunks = chunks.slice(i, i + chromaBatchSize);
@@ -81,6 +81,10 @@ export class ChromaVectorStore implements VectorStore {
           documents,
           metadatas
         });
+        
+        if (i % 500 === 0 || i + chromaBatchSize >= chunks.length) {
+          console.log(`💾 Stored ${Math.min(i + chromaBatchSize, chunks.length)}/${chunks.length} chunks to ChromaDB`);
+        }
       } catch (error) {
         console.warn(`Failed to add batch ${Math.floor(i/chromaBatchSize) + 1}, retrying with smaller chunks...`);
         

@@ -25,19 +25,36 @@ export class OpenAIEmbeddingService implements EmbeddingService {
 
   async generateEmbeddings(texts: string[]): Promise<number[][]> {
     try {
-      const batchSize = 100;
+      const batchSize = 500; // Increased batch size for better throughput
       const results: number[][] = [];
 
+      // Process batches in parallel with concurrency limit
+      const concurrency = 5;
+      const batches: string[][] = [];
+      
       for (let i = 0; i < texts.length; i += batchSize) {
-        const batch = texts.slice(i, i + batchSize);
+        batches.push(texts.slice(i, i + batchSize));
+      }
+
+      for (let i = 0; i < batches.length; i += concurrency) {
+        const concurrentBatches = batches.slice(i, i + concurrency);
         
-        const response = await this.client.embeddings.create({
-          model: this.model,
-          input: batch,
+        const batchPromises = concurrentBatches.map(async (batch) => {
+          const response = await this.client.embeddings.create({
+            model: this.model,
+            input: batch,
+          });
+          return response.data.map(item => item.embedding);
         });
 
-        const embeddings = response.data.map(item => item.embedding);
-        results.push(...embeddings);
+        const batchResults = await Promise.all(batchPromises);
+        batchResults.forEach(batchEmbeddings => {
+          results.push(...batchEmbeddings);
+        });
+
+        // Show progress
+        const processedBatches = Math.min(i + concurrency, batches.length);
+        console.log(`🧠 Generated embeddings for ${processedBatches}/${batches.length} batches`);
       }
 
       return results;
