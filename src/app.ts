@@ -80,8 +80,12 @@ const setupRoutes = (searchController: ReturnType<typeof createSearchController>
 
 const startServer = async () => {
   try {
+    console.log('🔄 Initializing services...');
     const { searchController } = initializeServices();
+    console.log('✅ Services initialized successfully');
+    
     setupRoutes(searchController);
+    console.log('✅ Routes setup completed');
     
     const port = parseInt(process.env.PORT || '3000');
     
@@ -91,7 +95,8 @@ const startServer = async () => {
       console.log(`🏥 Health Check: http://localhost:${port}/health`);
     });
   } catch (error) {
-    console.error('Failed to start server:', error);
+    console.error('❌ Failed to start server:', error);
+    console.error('Error details:', error);
     process.exit(1);
   }
 };

@@ -15,11 +15,15 @@ export class ChromaVectorStore implements VectorStore {
   }) {
     const { host = 'localhost', port = 8000, collectionName = 'japanese-law-documents' } = options || {};
     
+    console.log(`🔗 Connecting to ChromaDB at http://${host}:${port}`);
+    
     this.client = new ChromaClient({
       path: `http://${host}:${port}`
     });
     this.embeddingService = embeddingService;
     this.collectionName = collectionName;
+    
+    console.log(`✅ ChromaDB client initialized for collection: ${collectionName}`);
   }
 
   private async getCollection(): Promise<Collection> {
