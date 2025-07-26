@@ -62,72 +62,95 @@ export class GeminiEmbeddingService implements EmbeddingService {
 
   async generateEmbeddings(texts: string[]): Promise<number[][]> {
     try {
-      const batchSize = 100; // Gemini recommended batch size
-      const results: number[][] = [];
-
-      // Process in parallel with concurrency limit
-      const concurrency = 5; // Conservative concurrency for Gemini API
-      const batches: string[][] = [];
+      if (texts.length === 0) return [];
       
-      for (let i = 0; i < texts.length; i += batchSize) {
-        batches.push(texts.slice(i, i + batchSize));
-      }
-
-      console.log(`🧠 Generating embeddings for ${texts.length} texts using ${batches.length} batches`);
-
-      for (let i = 0; i < batches.length; i += concurrency) {
-        const concurrentBatches = batches.slice(i, i + concurrency);
-        
-        const batchPromises = concurrentBatches.map(async (batch) => {
-          const batchResults: number[][] = [];
-          
-          // Process each text in the batch sequentially for better reliability
-          for (const text of batch) {
-            try {
-              const embedding = await this.generateEmbedding(text);
-              batchResults.push(embedding);
-            } catch (error) {
-              console.warn(`Failed to generate embedding for text (length: ${text.length}):`, error);
-              // Generate empty embedding as fallback
-              batchResults.push([]);
-            }
-          }
-          
-          return batchResults;
-        });
-
-        const batchResults = await Promise.all(batchPromises);
-        batchResults.forEach(batchEmbeddings => {
-          results.push(...batchEmbeddings);
-        });
-
-        // Show progress
-        const processedBatches = Math.min(i + concurrency, batches.length);
-        console.log(`🧠 Gemini: Generated embeddings for ${processedBatches}/${batches.length} batches`);
-      }
-
-      // Filter out empty embeddings
-      const validResults = results.filter(embedding => embedding.length > 0);
-      
-      if (validResults.length < texts.length) {
-        console.warn(`⚠️ Some embeddings failed: ${validResults.length}/${texts.length} successful`);
-      }
-
-      return validResults;
+      // Use native batch processing for gemini-embedding-001
+      return await this.generateEmbeddingsBatch(texts);
     } catch (error) {
       console.error('Failed to generate embeddings with Gemini API:', error);
-      
-      if (error instanceof Error) {
-        throw new VertexAIError(
-          `Gemini batch embedding failed: ${error.message}`,
-          'BATCH_EMBEDDING_ERROR',
-          undefined,
-          error
-        );
-      }
-      
-      throw new VertexAIError('Unknown error in Gemini batch embedding generation');
+      throw new VertexAIError(
+        `Gemini batch embedding failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'BATCH_EMBEDDING_ERROR',
+        undefined,
+        error instanceof Error ? error : undefined
+      );
     }
+  }
+
+  // Native batch processing for gemini-embedding-001
+  private async generateEmbeddingsBatch(texts: string[]): Promise<number[][]> {
+    const batchSize = 100; // Gemini API supports larger batches
+    const results: number[][] = [];
+    
+    console.log(`🚀 Gemini API batch processing for ${texts.length} texts with batch size ${batchSize}`);
+    
+    for (let i = 0; i < texts.length; i += batchSize) {
+      const batch = texts.slice(i, i + batchSize);
+      
+      try {
+        console.log(`🧠 Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(texts.length/batchSize)} (${batch.length} texts)`);
+        
+        // Use batch API call with multiple contents
+        const response = await this.client.models.embedContent({
+          model: this.model,
+          contents: batch
+        });
+
+        if (!response.embeddings || response.embeddings.length !== batch.length) {
+          console.warn(`⚠️ Batch response mismatch: expected ${batch.length}, got ${response.embeddings?.length || 0}`);
+          // Fallback to sequential processing for this batch
+          const sequentialResults = await this.processSequentialBatch(batch);
+          results.push(...sequentialResults);
+        } else {
+          const batchEmbeddings = response.embeddings.map(emb => emb.values || []);
+          results.push(...batchEmbeddings);
+          console.log(`✅ Batch completed: ${batchEmbeddings.length} embeddings (${batchEmbeddings[0]?.length || 0} dims)`);
+        }
+        
+        // Rate limiting for API compliance
+        if (i + batchSize < texts.length) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+        
+      } catch (error) {
+        console.warn(`⚠️ Batch processing failed for batch ${Math.floor(i/batchSize) + 1}, falling back to sequential:`, error);
+        // Fallback to sequential processing for this batch
+        const sequentialResults = await this.processSequentialBatch(batch);
+        results.push(...sequentialResults);
+      }
+    }
+    
+    console.log(`🎉 Gemini batch processing completed: ${results.length}/${texts.length} successful embeddings`);
+    return results;
+  }
+
+  // Sequential processing fallback
+  private async processSequentialBatch(texts: string[]): Promise<number[][]> {
+    const results: number[][] = [];
+    const concurrency = 10; // Higher concurrency for Gemini API
+    
+    for (let i = 0; i < texts.length; i += concurrency) {
+      const batch = texts.slice(i, i + concurrency);
+      
+      const batchPromises = batch.map(async (text) => {
+        try {
+          return await this.generateEmbedding(text);
+        } catch (error) {
+          console.warn(`Failed embedding for text (length: ${text.length}):`, error);
+          return [] as number[];
+        }
+      });
+
+      const batchResults = await Promise.all(batchPromises);
+      results.push(...batchResults.filter(emb => emb.length > 0));
+      
+      // Rate limiting
+      if (i + concurrency < texts.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+    
+    return results;
   }
 
   // Health check method for provider monitoring

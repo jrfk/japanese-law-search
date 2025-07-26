@@ -68,72 +68,119 @@ export class VertexAIEmbeddingService implements EmbeddingService {
 
   async generateEmbeddings(texts: string[]): Promise<number[][]> {
     try {
-      const batchSize = 100; // Vertex AI recommended batch size
-      const results: number[][] = [];
-
-      // Process in parallel with concurrency limit
-      const concurrency = 3; // Conservative concurrency for Vertex AI
-      const batches: string[][] = [];
+      if (texts.length === 0) return [];
       
-      for (let i = 0; i < texts.length; i += batchSize) {
-        batches.push(texts.slice(i, i + batchSize));
+      // Use native batch API if available (gemini-embedding-001 supports batch processing)
+      if (this.model === 'gemini-embedding-001') {
+        return await this.generateEmbeddingsBatch(texts);
       }
-
-      console.log(`🧠 Generating embeddings via Vertex AI for ${texts.length} texts using ${batches.length} batches`);
-
-      for (let i = 0; i < batches.length; i += concurrency) {
-        const concurrentBatches = batches.slice(i, i + concurrency);
-        
-        const batchPromises = concurrentBatches.map(async (batch) => {
-          const batchResults: number[][] = [];
-          
-          // Process each text in the batch sequentially for better reliability
-          for (const text of batch) {
-            try {
-              const embedding = await this.generateEmbedding(text);
-              batchResults.push(embedding);
-            } catch (error) {
-              console.warn(`Failed to generate embedding for text (length: ${text.length}):`, error);
-              // Generate empty embedding as fallback
-              batchResults.push([]);
-            }
-          }
-          
-          return batchResults;
-        });
-
-        const batchResults = await Promise.all(batchPromises);
-        batchResults.forEach(batchEmbeddings => {
-          results.push(...batchEmbeddings);
-        });
-
-        // Show progress
-        const processedBatches = Math.min(i + concurrency, batches.length);
-        console.log(`🧠 Vertex AI: Generated embeddings for ${processedBatches}/${batches.length} batches`);
-      }
-
-      // Filter out empty embeddings
-      const validResults = results.filter(embedding => embedding.length > 0);
       
-      if (validResults.length < texts.length) {
-        console.warn(`⚠️ Some embeddings failed: ${validResults.length}/${texts.length} successful`);
-      }
-
-      return validResults;
+      // Fallback to sequential processing for other models
+      return await this.generateEmbeddingsSequential(texts);
     } catch (error) {
       console.error('Failed to generate embeddings with Vertex AI:', error);
+      throw new VertexAIError(
+        `Vertex AI batch embedding failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'BATCH_EMBEDDING_ERROR',
+        undefined,
+        error instanceof Error ? error : undefined
+      );
+    }
+  }
+
+  // Native batch processing for gemini-embedding-001
+  private async generateEmbeddingsBatch(texts: string[]): Promise<number[][]> {
+    const batchSize = 50; // Optimized batch size for gemini-embedding-001
+    const results: number[][] = [];
+    
+    console.log(`🚀 Using native batch processing for ${texts.length} texts with batch size ${batchSize}`);
+    
+    for (let i = 0; i < texts.length; i += batchSize) {
+      const batch = texts.slice(i, i + batchSize);
       
-      if (error instanceof Error) {
-        throw new VertexAIError(
-          `Vertex AI batch embedding failed: ${error.message}`,
-          'BATCH_EMBEDDING_ERROR',
-          undefined,
-          error
+      try {
+        console.log(`🧠 Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(texts.length/batchSize)} (${batch.length} texts)`);
+        
+        // Use batch API call with multiple contents
+        const response = await this.client.models.embedContent({
+          model: this.model,
+          contents: batch
+        });
+
+        if (!response.embeddings || response.embeddings.length !== batch.length) {
+          console.warn(`⚠️ Batch response mismatch: expected ${batch.length}, got ${response.embeddings?.length || 0}`);
+          // Fallback to sequential processing for this batch
+          const sequentialResults = await Promise.all(
+            batch.map(text => this.generateEmbedding(text).catch(() => []))
+          );
+          results.push(...sequentialResults.filter(emb => emb.length > 0));
+        } else {
+          const batchEmbeddings = response.embeddings.map(emb => emb.values || []);
+          results.push(...batchEmbeddings);
+          console.log(`✅ Batch completed: ${batchEmbeddings.length} embeddings (${batchEmbeddings[0]?.length || 0} dims)`);
+        }
+        
+        // Rate limiting
+        if (i + batchSize < texts.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+      } catch (error) {
+        console.warn(`⚠️ Batch processing failed for batch ${Math.floor(i/batchSize) + 1}, falling back to sequential:`, error);
+        // Fallback to sequential processing for this batch
+        const sequentialResults = await Promise.all(
+          batch.map(text => this.generateEmbedding(text).catch(() => []))
         );
+        results.push(...sequentialResults.filter(emb => emb.length > 0));
+      }
+    }
+    
+    console.log(`🎉 Batch processing completed: ${results.length}/${texts.length} successful embeddings`);
+    return results;
+  }
+
+  // Sequential processing with concurrency control
+  private async generateEmbeddingsSequential(texts: string[]): Promise<number[][]> {
+    const concurrency = 5; // Controlled concurrency
+    const results: number[][] = [];
+    
+    console.log(`🔄 Using sequential processing with concurrency ${concurrency} for ${texts.length} texts`);
+    
+    for (let i = 0; i < texts.length; i += concurrency) {
+      const batch = texts.slice(i, i + concurrency);
+      
+      const batchPromises = batch.map(async (text, index) => {
+        try {
+          const embedding = await this.generateEmbedding(text);
+          return { index: i + index, embedding };
+        } catch (error) {
+          console.warn(`Failed embedding for text ${i + index} (length: ${text.length}):`, error);
+          return { index: i + index, embedding: [] as number[] };
+        }
+      });
+
+      const batchResults = await Promise.all(batchPromises);
+      batchResults.forEach(result => {
+        if (result.embedding.length > 0) {
+          results[result.index] = result.embedding;
+        }
+      });
+
+      // Progress update
+      const processed = Math.min(i + concurrency, texts.length);
+      if (processed % 50 === 0 || processed === texts.length) {
+        console.log(`🧠 Sequential: ${processed}/${texts.length} texts processed`);
       }
       
-      throw new VertexAIError('Unknown error in Vertex AI batch embedding generation');
+      // Rate limiting
+      if (i + concurrency < texts.length) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
     }
+    
+    const validResults = results.filter(emb => emb && emb.length > 0);
+    console.log(`✅ Sequential processing completed: ${validResults.length}/${texts.length} successful`);
+    return validResults;
   }
 
   // Health check method for provider monitoring
