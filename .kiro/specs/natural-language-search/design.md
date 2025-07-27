@@ -124,9 +124,15 @@ interface QueryResponse {
 - Handle both Japanese and English queries
 
 **Configuration**:
-- Support for multiple LLM providers (OpenAI, Anthropic, local models)
+- Support for multiple LLM providers (OpenAI, Google Vertex AI, Anthropic, local models)
 - Configurable prompts for different query types
 - Context window management for long conversations
+
+**Provider Support**:
+- **OpenAI**: GPT-3.5-turbo, GPT-4, text-embedding-3-small/large
+- **Google Vertex AI**: Gemini Pro, Gemini Flash, text-embedding-004
+- **Anthropic**: Claude (via API)
+- **Local Models**: Ollama integration for privacy-focused deployments
 
 ## Data Models
 
@@ -238,6 +244,80 @@ interface ConversationMessage {
 - Database sharding for large document collections
 - CDN integration for static assets
 
+## Provider-Specific Configuration
+
+### Google Vertex AI Integration
+
+**Authentication**:
+- Service Account Key file or Application Default Credentials
+- Project ID and Region configuration
+- API enablement requirements (Vertex AI API, Cloud Resource Manager API)
+
+**Model Configuration**:
+```typescript
+interface VertexAIConfig {
+  projectId: string;
+  location: string; // e.g., 'us-central1', 'asia-northeast1'
+  
+  // LLM Models
+  textModel: string; // e.g., 'gemini-1.5-pro', 'gemini-1.5-flash'
+  
+  // Embedding Models  
+  embeddingModel: string; // e.g., 'text-embedding-004', 'textembedding-gecko'
+  
+  // Generation Parameters
+  generationConfig?: {
+    temperature?: number;
+    topP?: number;
+    topK?: number;
+    maxOutputTokens?: number;
+  };
+}
+```
+
+**Cost Considerations**:
+- Gemini Pro: ~$0.0025/1K input tokens, ~$0.0075/1K output tokens
+- text-embedding-004: ~$0.000025/1K tokens
+- Regional pricing variations and quota limits
+
+**Performance Benefits**:
+- Lower latency for users in Asia-Pacific region
+- Competitive pricing for high-volume usage
+- Native Japanese language optimization
+- Higher rate limits compared to OpenAI in some regions
+
+### OpenAI Integration
+
+**Authentication**:
+- API Key authentication
+- Organization ID for enterprise accounts
+
+**Model Support**:
+- GPT-3.5-turbo, GPT-4, GPT-4-turbo
+- text-embedding-3-small, text-embedding-3-large
+- Function calling and structured output support
+
+### Provider Selection Strategy
+
+**Automatic Fallback**:
+```typescript
+interface ProviderConfig {
+  primary: 'openai' | 'vertexai' | 'anthropic';
+  fallback: Array<'openai' | 'vertexai' | 'anthropic'>;
+  
+  // Health check intervals
+  healthCheckInterval: number;
+  
+  // Cost-based routing
+  costOptimization: boolean;
+}
+```
+
+**Use Case Recommendations**:
+- **Vertex AI**: Japanese legal documents, Asia-Pacific users, cost optimization
+- **OpenAI**: Global users, advanced reasoning, function calling
+- **Local Models**: Privacy-sensitive environments, offline operation
+
 ## Security and Privacy
 
 ### Data Protection
@@ -245,9 +325,11 @@ interface ConversationMessage {
 - Local processing options for sensitive documents
 - Secure storage of conversation history
 - Data retention policies for user interactions
+- Provider-specific data residency compliance (Google Cloud regions vs OpenAI global)
 
 ### API Security
 - Rate limiting for search endpoints
 - Input validation and sanitization
 - Authentication for administrative functions
 - Audit logging for system access
+- Secure credential management for multiple providers

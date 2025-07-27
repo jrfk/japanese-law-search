@@ -1,0 +1,37 @@
+{
+  "name": "japanese-law-search",
+  "version": "1.0.0",
+  "description": "Natural language search system for Japanese legal documents",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm run dev -w apps/backend",
+    "dev:frontend": "npm run dev -w apps/frontend",
+    "build": "npm run build -w apps/backend && npm run build -w apps/frontend",
+    "build:backend": "npm run build -w apps/backend",
+    "build:frontend": "npm run build -w apps/frontend",
+    "start": "npm run start -w apps/backend",
+    "test": "npm run test -w apps/backend",
+    "lint": "npm run lint -w apps/backend && npm run lint -w apps/frontend",
+    "typecheck": "npm run type-check -w apps/backend && npm run type-check -w apps/frontend",
+    "index:documents": "npm run index:documents -w apps/backend",
+    "index:documents:vertex": "npm run index:documents:vertex -w apps/backend"
+  },
+  "keywords": [
+    "search",
+    "nlp",
+    "japanese",
+    "law",
+    "documents",
+    "monorepo"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

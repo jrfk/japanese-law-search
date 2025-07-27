@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日本法律文書検索システム</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <h1>📚 日本法律文書検索システム</h1>
+            <p>自然言語で法律文書を検索・質問できます</p>
+        </header>
+
+        <main class="main-content">
+            <div class="chat-container">
+                <div class="conversation-history" id="conversationHistory">
+                    <div class="welcome-message">
+                        <div class="message assistant-message">
+                            <div class="message-content">
+                                こんにちは！日本の法律文書について質問してください。
+                                例：「憲法第9条について教えて」「民法の契約に関する条文は？」
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="input-section">
+                    <div class="search-filters" id="searchFilters">
+                        <div class="filter-group">
+                            <label for="categoryFilter">カテゴリ:</label>
+                            <select id="categoryFilter">
+                                <option value="">すべて</option>
+                                <option value="321">憲法</option>
+                                <option value="322">民法</option>
+                                <option value="323">刑法</option>
+                                <option value="324">商法</option>
+                                <option value="325">民事訴訟法</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="eraFilter">時代:</label>
+                            <select id="eraFilter">
+                                <option value="">すべて</option>
+                                <option value="明治">明治</option>
+                                <option value="大正">大正</option>
+                                <option value="昭和">昭和</option>
+                                <option value="平成">平成</option>
+                                <option value="令和">令和</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="query-input-container">
+                        <textarea 
+                            id="queryInput" 
+                            placeholder="法律に関する質問を入力してください..."
+                            rows="3"
+                        ></textarea>
+                        <button id="sendButton" class="send-button">
+                            <span class="send-icon">📤</span>
+                            送信
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <div class="conversation-list">
+                    <h3>会話履歴</h3>
+                    <div id="conversationList" class="conversation-items">
+                        <!-- 会話履歴がここに表示される -->
+                    </div>
+                    <button id="newConversationButton" class="new-conversation-button">
+                        + 新しい会話
+                    </button>
+                </div>
+
+                <div class="help-section">
+                    <h3>使い方</h3>
+                    <ul>
+                        <li>自然言語で質問を入力</li>
+                        <li>カテゴリや時代でフィルタリング</li>
+                        <li>関連条文と根拠を確認</li>
+                        <li>継続的な対話が可能</li>
+                    </ul>
+                </div>
+            </div>
+        </main>
+
+        <div class="loading-overlay" id="loadingOverlay">
+            <div class="loading-spinner">
+                <div class="spinner"></div>
+                <p>検索中...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
