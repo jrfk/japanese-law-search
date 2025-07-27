@@ -2,53 +2,36 @@
   "name": "japanese-law-search",
   "version": "1.0.0",
   "description": "Natural language search system for Japanese legal documents",
-  "main": "dist/index.js",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "build": "tsc",
-    "dev": "NODE_NO_WARNINGS=1 ts-node --transpile-only src/index.ts",
-    "start": "node dist/index.js",
-    "start:dev": "npm run build && npm start",
-    "index:documents": "ts-node src/scripts/index-documents.ts",
-    "index:documents:vertex": "ts-node src/scripts/index-documents-vertex.ts",
-    "test": "jest",
-    "lint": "eslint src/**/*.ts",
-    "typecheck": "tsc --noEmit"
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm run dev -w apps/backend",
+    "dev:frontend": "npm run dev -w apps/frontend",
+    "build": "npm run build -w apps/backend && npm run build -w apps/frontend",
+    "build:backend": "npm run build -w apps/backend",
+    "build:frontend": "npm run build -w apps/frontend",
+    "start": "npm run start -w apps/backend",
+    "test": "npm run test -w apps/backend",
+    "lint": "npm run lint -w apps/backend && npm run lint -w apps/frontend",
+    "typecheck": "npm run type-check -w apps/backend && npm run type-check -w apps/frontend",
+    "index:documents": "npm run index:documents -w apps/backend",
+    "index:documents:vertex": "npm run index:documents:vertex -w apps/backend"
   },
   "keywords": [
     "search",
     "nlp",
     "japanese",
     "law",
-    "documents"
+    "documents",
+    "monorepo"
   ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.3",
-    "@types/glob": "^8.1.0",
-    "@types/jest": "^29.5.0",
-    "@types/node": "^20.0.0",
-    "@types/uuid": "^10.0.0",
-    "@typescript-eslint/eslint-plugin": "^6.0.0",
-    "@typescript-eslint/parser": "^6.0.0",
-    "eslint": "^8.0.0",
-    "jest": "^29.5.0",
-    "ts-jest": "^29.1.0",
-    "ts-node": "^10.9.0",
-    "typescript": "^5.0.0"
-  },
-  "dependencies": {
-    "@google-cloud/vertexai": "^1.10.0",
-    "@google/genai": "^1.11.0",
-    "chromadb": "^1.7.0",
-    "cors": "^2.8.5",
-    "dotenv": "^16.3.0",
-    "express": "^4.18.0",
-    "google-auth-library": "^10.1.0",
-    "gray-matter": "^4.0.3",
-    "marked": "^9.0.0",
-    "openai": "^4.0.0",
-    "uuid": "^9.0.0"
+    "concurrently": "^8.2.2"
   }
 }

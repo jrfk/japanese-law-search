@@ -161,3 +161,8 @@ temp/
 
 # Claude Code settings
 .claude/settings.local.json
+
+# Large data files
+apps/backend/markdown/
+apps/backend/markdown_min/
+apps/backend/chroma-data/
